@@ -256,24 +256,45 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Check if this socket is already in the game (reconnection)
+    const existingPlayer = game.players.find(p => p.socketId === socket.id);
+    if (existingPlayer) {
+      socket.join(gameId);
+      socket.emit('gameJoined', { 
+        gameId, 
+        color: existingPlayer.color,
+        gameState: game 
+      });
+      
+      if (game.players.length === 2) {
+        socket.emit('gameStart', { gameState: game });
+      }
+      console.log(`Player reconnected to game: ${gameId}`);
+      return;
+    }
+
     if (game.players.length >= 2) {
       socket.emit('error', { message: 'Game is full' });
       return;
     }
 
-    game.players.push({ socketId: socket.id, color: 'b' });
+    // Determine color for new player
+    const color = game.players.length === 0 ? 'w' : 'b';
+    game.players.push({ socketId: socket.id, color });
     socket.join(gameId);
     
     socket.emit('gameJoined', { 
       gameId, 
-      color: 'b',
+      color,
       gameState: game 
     });
 
-    // Notify both players that game can start
-    io.to(gameId).emit('gameStart', { gameState: game });
+    // Notify both players that game can start when 2 players present
+    if (game.players.length === 2) {
+      io.to(gameId).emit('gameStart', { gameState: game });
+    }
     
-    console.log(`Player joined game: ${gameId}`);
+    console.log(`Player joined game: ${gameId} as ${color}`);
   });
 
   // Make a move
