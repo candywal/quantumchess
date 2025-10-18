@@ -101,12 +101,23 @@ function initializeQuantumBoard() {
 // ============================================================================
 
 /**
+ * Return the state with the highest probability (falls back to the first entry).
+ */
+function getDominantState(states) {
+  if (!states || states.length === 0) return null;
+  return states.reduce((max, state) =>
+    state.probability > max.probability ? state : max
+  , states[0]);
+}
+
+/**
  * Normalize probabilities and consolidate states
  * - Removes zero-probability states
  * - Consolidates multiple states on same square (adds probabilities)
  * - Normalizes all probabilities to sum to 1
  */
-function setPieceStates(piece, states) {
+function normalizeStates(states) {
+  if (!Array.isArray(states)) return [];
   const filtered = states.filter(s => s.probability > 0);
   if (filtered.length === 0) return [];
 
@@ -157,9 +168,7 @@ function buildClassicalBoard(pieces) {
   pieces.forEach(piece => {
     if (piece.states.length > 0) {
       // Use highest probability state (or first state if all equal)
-      const mainState = piece.states.reduce((max, state) =>
-        state.probability > max.probability ? state : max
-      );
+      const mainState = getDominantState(piece.states);
       try {
         chess.put({ type: piece.type, color: piece.color }, mainState.square);
       } catch (e) {
@@ -189,7 +198,8 @@ function getLegalMovesForPiece(pieces, pieceId) {
 
     // Build board with all piece states
     pieces.forEach(p => {
-      p.states.forEach(s => {
+      const statesToPlace = p.id === piece.id ? [state] : p.states;
+      statesToPlace.forEach(s => {
         try {
           if (!chess.get(s.square)) {
             chess.put({ type: p.type, color: p.color }, s.square);
@@ -268,8 +278,10 @@ function detectCaptures(pieces, movingPieceId, toSquare) {
  *    - Attacker collapses to 100% probability at capture square
  * 4. Failure (roll >= threshold):
  *    - The attacker was NOT real at this location
+ *    - The defender was also NOT real at this location
  *    - Remove the failed attacking state and renormalize remaining attacker states
- *    - Defender collapses to 100% probability at capture square (survives)
+ *    - Remove the contested defender state and renormalize remaining defender states
+ *    - Both pieces collapse away from the contested square
  *
  * @param {Array} pieces - The game pieces array (modified in place)
  * @param {string} attackerPieceId - ID of the attacking piece
@@ -294,6 +306,9 @@ function performCapture(pieces, attackerPieceId, defenderPieceId, captureSquare)
     return [];
   }
 
+  // Find the defending state at the capture square
+  const defendingStateIndex = defender.states.findIndex(s => s.square === captureSquare);
+
   // Quantum measurement: Roll dice based on attacking state's probability
   const roll = Math.random();
   const threshold = attackingState.probability;
@@ -315,28 +330,54 @@ function performCapture(pieces, attackerPieceId, defenderPieceId, captureSquare)
     collapseToState(attacker, captureSquare);
 
   } else {
-    // CAPTURE FAILURE: Attacker was NOT real at this location
+    // CAPTURE FAILURE: Neither piece was real at this location
+    // Both the attacker and defender were "somewhere else"
+
+    // Determine where defender collapses (if it has other states)
+    let defenderCollapseSquare = null;
+    if (defender.states.length > 1 && defendingStateIndex >= 0) {
+      // Remove contested state and find where defender actually was
+      defender.states.splice(defendingStateIndex, 1);
+      defender.states = normalizeStates(defender.states);
+
+      if (defender.states.length > 0) {
+        // Pick highest probability state (or random weighted choice)
+        const maxProbState = getDominantState(defender.states);
+        defenderCollapseSquare = maxProbState ? maxProbState.square : null;
+      }
+    }
+
     collapseEvents.push({
       type: 'capture_fail',
       roll: roll.toFixed(3),
       threshold: threshold.toFixed(3),
       capturingPiece: { id: attackerPieceId, square: captureSquare },
-      capturedPiece: { id: defenderPieceId, square: captureSquare }
+      capturedPiece: { id: defenderPieceId, square: captureSquare },
+      defenderActualSquare: defenderCollapseSquare
     });
 
     // Remove the failed attacking state
     attacker.states.splice(attackingStateIndex, 1);
 
-    // Renormalize remaining probabilities to sum to 1
-    attacker.states = setPieceStates(attacker, attacker.states);
+    // Renormalize remaining attacker probabilities
+    attacker.states = normalizeStates(attacker.states);
 
     // If attacker has no states left, it's completely removed
     if (attacker.states.length === 0) {
       removePiece(pieces, attackerPieceId);
     }
 
-    // Defender survives and collapses to deterministic state
-    collapseToState(defender, captureSquare);
+    // Handle defender collapse
+    if (defender.states.length === 0) {
+      // Defender has no other states - it's removed
+      removePiece(pieces, defenderPieceId);
+    } else if (defenderCollapseSquare) {
+      // Defender collapses to its actual location (not the contested square)
+      collapseToState(defender, defenderCollapseSquare);
+    } else if (defendingStateIndex === -1) {
+      // Defender had no recorded state at the contested square; ensure probabilities remain normalized
+      defender.states = normalizeStates(defender.states);
+    }
   }
 
   return collapseEvents;
@@ -386,6 +427,9 @@ function formatCollapseInfo(collapseEvents) {
   if (event.type === 'capture_success') {
     return `Roll: ${rollPercent}% < ${thresholdPercent}% ✓`;
   } else {
+    if (event.defenderActualSquare) {
+      return `Roll: ${rollPercent}% ≥ ${thresholdPercent}% ✗ → ${event.defenderActualSquare}`;
+    }
     return `Roll: ${rollPercent}% ≥ ${thresholdPercent}% ✗`;
   }
 }
@@ -522,8 +566,8 @@ io.on('connection', (socket) => {
         });
       });
 
-      // Update piece with new states (setPieceStates consolidates and normalizes)
-      piece.states = setPieceStates(piece, newStates);
+      // Update piece with new states (normalizeStates consolidates and normalizes)
+      piece.states = normalizeStates(newStates);
 
       // Check for captures at both targets
       const captures1 = detectCaptures(game.pieces, pieceId, firstTarget);
@@ -627,4 +671,3 @@ const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Quantum Chess server running on port ${PORT}`);
 });
-

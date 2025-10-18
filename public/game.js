@@ -454,12 +454,16 @@ function showCollapseAnimation(collapseEvents, callback) {
                 ${getPieceName(event.capturingPiece.id)} captured ${getPieceName(event.capturedPiece.id)} at ${event.capturingPiece.square}
             `;
         } else {
+            const actualLocation = event.defenderActualSquare
+                ? `collapsed to ${event.defenderActualSquare}`
+                : 'was removed (no other states)';
             detailsText.innerHTML = `
                 <strong class="failure">Capture Failed!</strong><br>
                 Roll: ${(roll * 100).toFixed(1)}% ≥ ${(threshold * 100).toFixed(1)}%<br>
-                The attacking piece was NOT real at this location.<br>
+                Neither piece was real at this location.<br>
                 <br>
-                ${getPieceName(event.capturedPiece.id)} survived at ${event.capturedPiece.square}
+                ${getPieceName(event.capturedPiece.id)} ${actualLocation}<br>
+                ${getPieceName(event.capturingPiece.id)} state removed from ${event.capturingPiece.square}
             `;
         }
         
