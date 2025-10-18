@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Chess - Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h2>⚛️ Quantum Chess</h2>
+            <div class="game-info">
+                <span id="gameId" class="game-id"></span>
+                <span id="playerColor" class="player-color"></span>
+                <span id="turnIndicator" class="turn-indicator"></span>
+            </div>
+        </div>
+
+        <div class="game-content">
+            <div class="board-wrapper">
+                <div id="chessboard" class="chessboard"></div>
+            </div>
+
+            <div class="side-panel">
+                <div class="status-box">
+                    <h3>Game Status</h3>
+                    <p id="statusMessage">Waiting for opponent...</p>
+                </div>
+
+                <div id="moveOptions" class="move-options hidden">
+                    <h3>Move Options</h3>
+                    <p>Move to <span id="targetSquare"></span></p>
+                    <button id="normalMoveBtn" class="option-btn">Normal Move</button>
+                    <button id="splitMoveBtn" class="option-btn split-btn">Split (Quantum)</button>
+                    <button id="cancelMoveBtn" class="option-btn cancel-btn">Cancel</button>
+                </div>
+
+                <div class="legend">
+                    <h3>Legend</h3>
+                    <div class="legend-item">
+                        <div class="legend-piece quantum-piece">♛<span class="prob-label">50%</span></div>
+                        <span>Quantum piece (in superposition)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-piece">♛</div>
+                        <span>Normal piece (definite state)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collapse Event Modal -->
+        <div id="collapseModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>🎲 Quantum Collapse!</h2>
+                <div id="collapseDetails"></div>
+                <button id="closeModalBtn" class="primary-btn">Continue</button>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="gameOverModal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="gameOverTitle">Game Over</h2>
+                <p id="gameOverMessage"></p>
+                <button id="newGameBtn" class="primary-btn">New Game</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
+

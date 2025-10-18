@@ -1,0 +1,22 @@
+{
+  "name": "quantum-chess",
+  "version": "1.0.0",
+  "description": "Multiplayer quantum chess game with superposition mechanics",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["chess", "quantum", "multiplayer", "websocket"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "chess.js": "^1.0.0-beta.6"
+  },
+  "engines": {
+    "node": ">=16.x"
+  }
+}
+

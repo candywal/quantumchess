@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Chess</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="landing-page">
+            <h1>⚛️ Quantum Chess</h1>
+            <p class="subtitle">Chess with quantum superposition</p>
+            
+            <div class="info-box">
+                <h3>How to Play</h3>
+                <ul>
+                    <li>Standard chess rules apply</li>
+                    <li>Non-pawn pieces can <strong>split</strong> into quantum superposition</li>
+                    <li>Quantum pieces exist in multiple places at once with probabilities</li>
+                    <li>Captures trigger collapse - a dice roll determines reality</li>
+                    <li>Win by capturing the opponent's king</li>
+                </ul>
+            </div>
+
+            <div class="button-group">
+                <button id="createGameBtn" class="primary-btn">Create New Game</button>
+                <div class="join-section">
+                    <input type="text" id="gameIdInput" placeholder="Enter Game ID" maxlength="6">
+                    <button id="joinGameBtn" class="secondary-btn">Join Game</button>
+                </div>
+            </div>
+
+            <div id="gameLink" class="game-link hidden">
+                <p>Share this link with your opponent:</p>
+                <div class="link-box">
+                    <input type="text" id="shareLink" readonly>
+                    <button id="copyLinkBtn" class="copy-btn">Copy</button>
+                </div>
+                <button id="startGameBtn" class="primary-btn">Go to Game</button>
+            </div>
+
+            <div id="error" class="error-message hidden"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        
+        document.getElementById('createGameBtn').addEventListener('click', () => {
+            socket.emit('createGame');
+        });
+
+        document.getElementById('joinGameBtn').addEventListener('click', () => {
+            const gameId = document.getElementById('gameIdInput').value.toUpperCase();
+            if (gameId.length === 6) {
+                window.location.href = `/game.html?id=${gameId}`;
+            } else {
+                showError('Please enter a valid 6-character game ID');
+            }
+        });
+
+        document.getElementById('copyLinkBtn').addEventListener('click', () => {
+            const shareLink = document.getElementById('shareLink');
+            shareLink.select();
+            document.execCommand('copy');
+            document.getElementById('copyLinkBtn').textContent = 'Copied!';
+            setTimeout(() => {
+                document.getElementById('copyLinkBtn').textContent = 'Copy';
+            }, 2000);
+        });
+
+        document.getElementById('startGameBtn').addEventListener('click', () => {
+            const gameId = document.getElementById('shareLink').value.split('id=')[1];
+            window.location.href = `/game.html?id=${gameId}`;
+        });
+
+        socket.on('gameCreated', ({ gameId, color }) => {
+            const shareLink = `${window.location.origin}/game.html?id=${gameId}`;
+            document.getElementById('shareLink').value = shareLink;
+            document.getElementById('gameLink').classList.remove('hidden');
+            document.querySelector('.button-group').style.display = 'none';
+        });
+
+        socket.on('error', ({ message }) => {
+            showError(message);
+        });
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+
