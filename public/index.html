@@ -44,12 +44,18 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        
+        // Generate random game ID client-side
+        function generateGameId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
         document.getElementById('createGameBtn').addEventListener('click', () => {
-            socket.emit('createGame');
+            const gameId = generateGameId();
+            const shareLink = `${window.location.origin}/game.html?id=${gameId}`;
+            document.getElementById('shareLink').value = shareLink;
+            document.getElementById('gameLink').classList.remove('hidden');
+            document.querySelector('.button-group').style.display = 'none';
         });
 
         document.getElementById('joinGameBtn').addEventListener('click', () => {
@@ -74,17 +80,6 @@
         document.getElementById('startGameBtn').addEventListener('click', () => {
             const gameId = document.getElementById('shareLink').value.split('id=')[1];
             window.location.href = `/game.html?id=${gameId}`;
-        });
-
-        socket.on('gameCreated', ({ gameId, color }) => {
-            const shareLink = `${window.location.origin}/game.html?id=${gameId}`;
-            document.getElementById('shareLink').value = shareLink;
-            document.getElementById('gameLink').classList.remove('hidden');
-            document.querySelector('.button-group').style.display = 'none';
-        });
-
-        socket.on('error', ({ message }) => {
-            showError(message);
         });
 
         function showError(message) {

@@ -230,30 +230,15 @@ function checkGameOver(pieces) {
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  // Create new game
-  socket.on('createGame', () => {
-    const gameId = generateGameId();
-    const game = createGame(gameId);
-    game.players.push({ socketId: socket.id, color: 'w' });
-    games.set(gameId, game);
-    
-    socket.join(gameId);
-    socket.emit('gameCreated', { 
-      gameId, 
-      color: 'w',
-      gameState: game 
-    });
-    
-    console.log(`Game created: ${gameId}`);
-  });
-
-  // Join existing game
+  // Join or create game
   socket.on('joinGame', (gameId) => {
-    const game = games.get(gameId);
+    let game = games.get(gameId);
     
+    // If game doesn't exist, create it
     if (!game) {
-      socket.emit('error', { message: 'Game not found' });
-      return;
+      game = createGame(gameId);
+      games.set(gameId, game);
+      console.log(`Game created: ${gameId}`);
     }
 
     // Check if this socket is already in the game (reconnection)
