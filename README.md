@@ -127,4 +127,3 @@ This is a personal project, but feel free to fork and modify!
 ## License
 
 MIT
->>>>>>> 7555f55 (Update README.md to include detailed game description, features, gameplay instructions, local development setup, deployment options, game architecture, technology stack, and contribution guidelines for Quantum Chess.)

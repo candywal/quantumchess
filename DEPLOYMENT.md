@@ -15,7 +15,7 @@ This guide will walk you through deploying your Quantum Chess game to Render.
 If you haven't already:
 
 ```bash
-cd /Users/candywal/Documents/Random/quantumchess/quantumchess
+# from the project root
 git init
 git add .
 git commit -m "Initial commit: Quantum Chess game"
@@ -176,4 +176,3 @@ For issues with:
 - **Custom domain**: Free with Render, domain purchase separate (~$10/year)
 
 Enjoy your Quantum Chess game! 🎮⚛️
-

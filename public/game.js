@@ -1,3 +1,17 @@
+/**
+ * Quantum Chess Client
+ *
+ * This client handles the visual representation and user interaction
+ * for quantum chess pieces that exist in superposition.
+ *
+ * Key Features:
+ * - Renders quantum states as multiple pieces with opacity based on probability
+ * - Only shows probability labels for pieces in true superposition (prob < 100%)
+ * - Handles piece selection and move target selection
+ * - Displays quantum collapse animations with dice rolls
+ * - Supports move history navigation
+ */
+
 // Game state
 let socket;
 let gameId;
@@ -213,15 +227,18 @@ function renderBoard() {
         for (let col = 0; col < 8; col++) {
             const actualRow = playerColor === 'b' ? row : 7 - row;
             const actualCol = playerColor === 'b' ? 7 - col : col;
-            
+
             const square = document.createElement('div');
             const squareId = columnToLetter(actualCol) + (actualRow + 1);
             square.className = `square ${(actualRow + actualCol) % 2 === 0 ? 'light' : 'dark'}`;
             square.dataset.square = squareId;
 
-            // Highlight selected square
-            if (selectedPiece && selectedPiece.square === squareId) {
-                square.classList.add('selected');
+            // Highlight selected piece's states
+            if (selectedPiece && selectedPiece.states) {
+                const hasState = selectedPiece.states.some(s => s.square === squareId);
+                if (hasState) {
+                    square.classList.add('selected');
+                }
             }
 
             square.addEventListener('click', () => handleSquareClick(squareId));
@@ -230,7 +247,7 @@ function renderBoard() {
         }
     }
 
-    // Render pieces
+    // Render pieces with their quantum states
     if (gameState && gameState.pieces) {
         gameState.pieces.forEach(piece => {
             renderPiece(piece);
@@ -239,33 +256,42 @@ function renderBoard() {
 }
 
 function renderPiece(piece) {
-    const squareElement = document.querySelector(`[data-square="${piece.square}"]`);
-    if (!squareElement) return;
+    if (!piece.states || piece.states.length === 0) return;
 
-    const pieceElement = document.createElement('div');
-    pieceElement.className = 'piece';
-    pieceElement.textContent = PIECES[piece.color][piece.type];
-    pieceElement.dataset.pieceId = piece.id;
+    // Render each quantum state of the piece
+    piece.states.forEach(state => {
+        const squareElement = document.querySelector(`[data-square="${state.square}"]`);
+        if (!squareElement) return;
 
-    // Apply quantum styling
-    if (piece.probability < 1.0) {
-        pieceElement.classList.add('quantum');
-        pieceElement.style.opacity = Math.max(0.3, piece.probability);
+        const pieceElement = document.createElement('div');
+        pieceElement.className = 'piece';
+        pieceElement.textContent = PIECES[piece.color][piece.type];
+        pieceElement.dataset.pieceId = piece.id;
 
-        // Add probability label with piece number
-        const probLabel = document.createElement('span');
-        probLabel.className = 'prob-label';
-        probLabel.textContent = `${piece.type.toUpperCase()}${piece.displayNum} ${Math.round(piece.probability * 100)}%`;
-        pieceElement.appendChild(probLabel);
-    } else if (piece.displayNum > 1) {
-        // Show piece number even for 100% probability pieces if they're numbered > 1
-        const probLabel = document.createElement('span');
-        probLabel.className = 'prob-label';
-        probLabel.textContent = `${piece.type.toUpperCase()}${piece.displayNum}`;
-        pieceElement.appendChild(probLabel);
-    }
+        // Determine if piece is in superposition (multiple states OR single state with prob < 1)
+        const isQuantum = piece.states.length > 1 || state.probability < 1.0;
 
-    squareElement.appendChild(pieceElement);
+        if (isQuantum) {
+            pieceElement.classList.add('quantum');
+            pieceElement.style.opacity = Math.max(0.3, state.probability);
+
+            // Only show probability label if truly quantum (not 100% deterministic)
+            if (piece.states.length > 1 || state.probability < 1.0) {
+                const probLabel = document.createElement('span');
+                probLabel.className = 'prob-label';
+                probLabel.textContent = `${piece.type.toUpperCase()}${piece.displayNum} ${Math.round(state.probability * 100)}%`;
+                pieceElement.appendChild(probLabel);
+            }
+        } else if (piece.displayNum > 1) {
+            // Show piece number for deterministic pieces only if numbered > 1
+            const probLabel = document.createElement('span');
+            probLabel.className = 'prob-label';
+            probLabel.textContent = `${piece.type.toUpperCase()}${piece.displayNum}`;
+            pieceElement.appendChild(probLabel);
+        }
+
+        squareElement.appendChild(pieceElement);
+    });
 }
 
 function handleSquareClick(squareId) {
@@ -347,10 +373,11 @@ function handleTargetSelection(squareId) {
 
 function findPieceAtSquare(square, color) {
     if (!gameState || !gameState.pieces) return null;
-    
-    return gameState.pieces.find(piece => 
-        piece.color === color && 
-        piece.square === square
+
+    return gameState.pieces.find(piece =>
+        piece.color === color &&
+        piece.states &&
+        piece.states.some(s => s.square === square)
     );
 }
 
@@ -680,7 +707,7 @@ function renderHistoricalState(historicalState) {
         for (let col = 0; col < 8; col++) {
             const actualRow = playerColor === 'b' ? row : 7 - row;
             const actualCol = playerColor === 'b' ? 7 - col : col;
-            
+
             const square = document.createElement('div');
             const squareId = columnToLetter(actualCol) + (actualRow + 1);
             square.className = `square ${(actualRow + actualCol) % 2 === 0 ? 'light' : 'dark'}`;
