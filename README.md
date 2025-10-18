@@ -1,2 +1,1 @@
-# tracker
-# quantumchess
+This is going to be a simple game implementation of quantum chess. When you move a piece, you have the option to split the piece and have it in superposition in two places. You can play chess where there's like multiple states visible at once on the board. 
