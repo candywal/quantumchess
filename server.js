@@ -20,14 +20,18 @@ function generateGameId() {
 }
 
 // Initialize a new quantum chess game
-function createGame(gameId) {
+function createGame(gameId, splittingMode = 'optional', timeControl = 'unlimited') {
+  const { pieces, pieceCounters } = initializeQuantumBoard();
   const game = {
     id: gameId,
     players: [],
     currentTurn: 'w', // 'w' or 'b'
-    pieces: initializeQuantumBoard(),
+    pieces: pieces,
+    pieceCounters: pieceCounters, // Track next number for each piece type
     gameOver: false,
-    winner: null
+    winner: null,
+    splittingMode,
+    timeControl
   };
   return game;
 }
@@ -35,6 +39,7 @@ function createGame(gameId) {
 // Initialize standard chess starting position with quantum structure
 function initializeQuantumBoard() {
   const pieces = [];
+  const pieceCounters = {}; // Track piece numbering per type
   
   // Standard chess starting positions
   const startingPositions = {
@@ -56,17 +61,23 @@ function initializeQuantumBoard() {
     'g1': { type: 'n', color: 'w' }, 'h1': { type: 'r', color: 'w' }
   };
 
-  // Create pieces with single quantum state (100% probability)
+  // Create pieces - each piece is independent with 100% probability
   for (const [square, piece] of Object.entries(startingPositions)) {
+    const key = `${piece.color}-${piece.type}`;
+    if (!pieceCounters[key]) pieceCounters[key] = 0;
+    pieceCounters[key]++;
+    
     pieces.push({
-      id: `${piece.color}-${piece.type}-${square}`,
+      id: `${piece.color}-${piece.type}-${pieceCounters[key]}`,
       type: piece.type,
       color: piece.color,
-      states: [{ square, probability: 1.0 }]
+      square: square,
+      probability: 1.0,
+      displayNum: pieceCounters[key] // For display (B1, B2, etc.)
     });
   }
 
-  return pieces;
+  return { pieces, pieceCounters };
 }
 
 // Check if a move is legal using chess.js
@@ -126,93 +137,82 @@ function getValidMoves(pieces, pieceId) {
 // Detect if a move would cause a capture (overlap with enemy piece)
 function detectCapture(pieces, movingPieceId, toSquare) {
   const movingPiece = pieces.find(p => p.id === movingPieceId);
+  if (!movingPiece) return [];
+  
+  const captures = [];
   
   for (const piece of pieces) {
     if (piece.id === movingPieceId) continue;
     if (piece.color === movingPiece.color) continue;
 
-    for (const state of piece.states) {
-      if (state.square === toSquare) {
-        return { captured: true, pieceId: piece.id, square: toSquare };
-      }
+    // Check if this piece is on the target square
+    if (piece.square === toSquare) {
+      captures.push({
+        pieceId: piece.id,
+        square: toSquare,
+        probability: piece.probability
+      });
     }
   }
   
-  return { captured: false };
+  return captures;
 }
 
-// Collapse quantum states when capture occurs
+// Collapse quantum states when capture occurs between two pieces
 function collapseQuantumState(pieces, capturingPieceId, capturedPieceId, captureSquare) {
   const capturingPiece = pieces.find(p => p.id === capturingPieceId);
   const capturedPiece = pieces.find(p => p.id === capturedPieceId);
 
+  if (!capturingPiece || !capturedPiece) return { pieces, collapseEvents: [] };
+
   const collapseEvents = [];
 
-  // Find the capturing state
-  const capturingStateIndex = capturingPiece.states.findIndex(s => s.square === captureSquare);
-  if (capturingStateIndex === -1) return { pieces, collapseEvents };
-
-  const capturingState = capturingPiece.states[capturingStateIndex];
-
-  // Find the captured state
-  const capturedStateIndex = capturedPiece.states.findIndex(s => s.square === captureSquare);
-  if (capturedStateIndex === -1) return { pieces, collapseEvents };
-
-  const capturedState = capturedPiece.states[capturedStateIndex];
-
-  // Roll the dice
+  // Roll the dice - compare attacking piece's probability
   const roll = Math.random();
-  const threshold = capturingState.probability;
+  const threshold = capturingPiece.probability;
 
   if (roll < threshold) {
-    // Capturing piece is "real" at this location - capture succeeds
+    // Capturing piece is "real" - capture succeeds
     collapseEvents.push({
       type: 'capture_success',
       roll: roll.toFixed(3),
       threshold: threshold.toFixed(3),
-      capturingPiece: { id: capturingPieceId, square: captureSquare, probability: capturingState.probability },
-      capturedPiece: { id: capturedPieceId, square: captureSquare, probability: capturedState.probability }
+      capturingPiece: { id: capturingPieceId, square: captureSquare, probability: capturingPiece.probability },
+      capturedPiece: { id: capturedPieceId, square: captureSquare, probability: capturedPiece.probability }
     });
 
-    // Remove captured state
-    capturedPiece.states.splice(capturedStateIndex, 1);
-
-    // Renormalize captured piece's remaining states
-    if (capturedPiece.states.length > 0) {
-      const sum = capturedPiece.states.reduce((acc, s) => acc + s.probability, 0);
-      capturedPiece.states.forEach(s => s.probability = s.probability / sum);
+    // Remove captured piece
+    const capturedIndex = pieces.findIndex(p => p.id === capturedPieceId);
+    if (capturedIndex !== -1) {
+      pieces.splice(capturedIndex, 1);
     }
 
-    // Capturing piece collapses to this position
-    capturingPiece.states = [{ square: captureSquare, probability: 1.0 }];
+    // Capturing piece becomes 100% real at this position
+    capturingPiece.probability = 1.0;
+    capturingPiece.square = captureSquare;
 
   } else {
-    // Capturing piece is NOT real at this location - capture fails
+    // Capturing piece is NOT real - capture fails
     collapseEvents.push({
       type: 'capture_fail',
       roll: roll.toFixed(3),
       threshold: threshold.toFixed(3),
-      capturingPiece: { id: capturingPieceId, square: captureSquare, probability: capturingState.probability },
-      capturedPiece: { id: capturedPieceId, square: captureSquare, probability: capturedState.probability }
+      capturingPiece: { id: capturingPieceId, square: captureSquare, probability: capturingPiece.probability },
+      capturedPiece: { id: capturedPieceId, square: captureSquare, probability: capturedPiece.probability }
     });
 
-    // Remove capturing state
-    capturingPiece.states.splice(capturingStateIndex, 1);
-
-    // Renormalize capturing piece's remaining states
-    if (capturingPiece.states.length > 0) {
-      const sum = capturingPiece.states.reduce((acc, s) => acc + s.probability, 0);
-      capturingPiece.states.forEach(s => s.probability = s.probability / sum);
+    // Remove capturing piece (it wasn't real)
+    const capturingIndex = pieces.findIndex(p => p.id === capturingPieceId);
+    if (capturingIndex !== -1) {
+      pieces.splice(capturingIndex, 1);
     }
 
-    // Captured piece collapses to this position
-    capturedPiece.states = [{ square: captureSquare, probability: 1.0 }];
+    // Captured piece becomes 100% real at this position
+    capturedPiece.probability = 1.0;
+    capturedPiece.square = captureSquare;
   }
 
-  // Remove pieces with no states left
-  const filteredPieces = pieces.filter(p => p.states.length > 0);
-
-  return { pieces: filteredPieces, collapseEvents };
+  return { pieces, collapseEvents };
 }
 
 // Check if king is captured (game over)
@@ -226,19 +226,60 @@ function checkGameOver(pieces) {
   return { gameOver: false, winner: null };
 }
 
+// Generate move notation
+function generateNotation(piece, fromSquare, toSquare, isCapture) {
+  const pieceSymbol = piece.type === 'p' ? '' : piece.type.toUpperCase();
+  let notation = pieceSymbol;
+  
+  // Add quantum indicator if piece is in superposition
+  if (piece.states && piece.states.length > 1) {
+    const maxProb = Math.max(...piece.states.map(s => s.probability));
+    notation += `(${Math.round(maxProb * 100)}%)`;
+  }
+  
+  // Add capture symbol
+  if (isCapture) {
+    notation += 'x';
+  }
+  
+  // Add destination
+  notation += toSquare;
+  
+  return notation;
+}
+
+// Format collapse info for display
+function formatCollapseInfo(collapseEvents) {
+  if (!collapseEvents || collapseEvents.length === 0) return null;
+  
+  const event = collapseEvents[0];
+  const rollPercent = (parseFloat(event.roll) * 100).toFixed(1);
+  const thresholdPercent = (parseFloat(event.threshold) * 100).toFixed(1);
+  
+  if (event.type === 'capture_success') {
+    return `Roll: ${rollPercent}% < ${thresholdPercent}% ✓`;
+  } else {
+    return `Roll: ${rollPercent}% ≥ ${thresholdPercent}% ✗`;
+  }
+}
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   // Join or create game
-  socket.on('joinGame', (gameId) => {
+  socket.on('joinGame', (data) => {
+    const gameId = typeof data === 'string' ? data : data.gameId;
+    const splittingMode = data.splittingMode || 'optional';
+    const timeControl = data.timeControl || 'unlimited';
+    
     let game = games.get(gameId);
     
-    // If game doesn't exist, create it
+    // If game doesn't exist, create it with settings
     if (!game) {
-      game = createGame(gameId);
+      game = createGame(gameId, splittingMode, timeControl);
       games.set(gameId, game);
-      console.log(`Game created: ${gameId}`);
+      console.log(`Game created: ${gameId} (mode: ${splittingMode}, time: ${timeControl})`);
     }
 
     // Check if this socket is already in the game (reconnection)
@@ -283,7 +324,7 @@ io.on('connection', (socket) => {
   });
 
   // Make a move
-  socket.on('makeMove', ({ gameId, pieceId, toSquare, shouldSplit }) => {
+  socket.on('makeMove', ({ gameId, pieceId, firstTarget, secondTarget, shouldSplit }) => {
     const game = games.get(gameId);
     
     if (!game) {
@@ -308,62 +349,141 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Check for captures
-    const captureInfo = detectCapture(game.pieces, pieceId, toSquare);
-    
-    if (captureInfo.captured) {
-      // Handle quantum collapse
-      const result = collapseQuantumState(game.pieces, pieceId, captureInfo.pieceId, toSquare);
-      game.pieces = result.pieces;
+    let collapseEvents = [];
+    let moveNotation = '';
+    let collapseInfo = null;
+    const fromSquare = piece.square;
 
-      // Check if game is over
-      const gameOverStatus = checkGameOver(game.pieces);
-      if (gameOverStatus.gameOver) {
-        game.gameOver = true;
-        game.winner = gameOverStatus.winner;
-        io.to(gameId).emit('gameOver', { 
-          winner: gameOverStatus.winner,
-          collapseEvents: result.collapseEvents 
-        });
-        return;
+    // Handle splitting move
+    if (shouldSplit && secondTarget && piece.type !== 'p') {
+      // Create two new pieces at 50% probability each
+      const key = `${piece.color}-${piece.type}`;
+      
+      // Increment counter for new pieces
+      game.pieceCounters[key]++;
+      const newPieceNum1 = game.pieceCounters[key];
+      game.pieceCounters[key]++;
+      const newPieceNum2 = game.pieceCounters[key];
+
+      // Check for captures on both targets
+      const captures1 = detectCapture(game.pieces, pieceId, firstTarget);
+      const captures2 = detectCapture(game.pieces, pieceId, secondTarget);
+
+      // Remove the original piece
+      const pieceIndex = game.pieces.findIndex(p => p.id === pieceId);
+      if (pieceIndex !== -1) {
+        game.pieces.splice(pieceIndex, 1);
       }
 
-      // Emit collapse event to both players
-      io.to(gameId).emit('collapseEvent', { 
-        collapseEvents: result.collapseEvents,
-        gameState: game 
-      });
+      // Create first piece at firstTarget (50% probability)
+      const piece1 = {
+        id: `${piece.color}-${piece.type}-${newPieceNum1}`,
+        type: piece.type,
+        color: piece.color,
+        square: firstTarget,
+        probability: 0.5,
+        displayNum: newPieceNum1
+      };
 
-    } else if (shouldSplit && piece.type !== 'p') {
-      // Split the piece into quantum superposition
-      const fromSquare = piece.states[0].square; // Assuming single state for now
-      
-      if (piece.states.length === 1) {
-        // First split: 50/50
-        piece.states = [
-          { square: fromSquare, probability: 0.5 },
-          { square: toSquare, probability: 0.5 }
-        ];
+      // Create second piece at secondTarget (50% probability)
+      const piece2 = {
+        id: `${piece.color}-${piece.type}-${newPieceNum2}`,
+        type: piece.type,
+        color: piece.color,
+        square: secondTarget,
+        probability: 0.5,
+        displayNum: newPieceNum2
+      };
+
+      // Handle captures for piece1
+      if (captures1.length > 0) {
+        for (const capture of captures1) {
+          const result = collapseQuantumState(game.pieces, piece1.id, capture.pieceId, firstTarget);
+          // Check if piece1 survived
+          if (game.pieces.find(p => p.id === piece1.id)) {
+            collapseEvents = collapseEvents.concat(result.collapseEvents);
+            if (!collapseInfo) collapseInfo = formatCollapseInfo(result.collapseEvents);
+          }
+        }
       } else {
-        // Already split - redistribute probabilities
-        const fromStateIndex = piece.states.findIndex(s => s.square === fromSquare);
-        if (fromStateIndex !== -1) {
-          const fromProb = piece.states[fromStateIndex].probability;
-          piece.states[fromStateIndex].probability = fromProb / 2;
-          piece.states.push({ square: toSquare, probability: fromProb / 2 });
+        game.pieces.push(piece1);
+      }
+
+      // Handle captures for piece2 (only if it wasn't involved in a capture)
+      if (captures2.length > 0) {
+        // Add piece2 temporarily so collapse can find it
+        if (!game.pieces.find(p => p.id === piece2.id)) {
+          game.pieces.push(piece2);
+        }
+        for (const capture of captures2) {
+          const result = collapseQuantumState(game.pieces, piece2.id, capture.pieceId, secondTarget);
+          collapseEvents = collapseEvents.concat(result.collapseEvents);
+          if (!collapseInfo) collapseInfo = formatCollapseInfo(result.collapseEvents);
+        }
+      } else {
+        if (!game.pieces.find(p => p.id === piece2.id)) {
+          game.pieces.push(piece2);
         }
       }
 
+      moveNotation = `${piece.type.toUpperCase()}${firstTarget}|${secondTarget}`;
+
     } else {
-      // Normal move - move all quantum states
-      piece.states = [{ square: toSquare, probability: 1.0 }];
+      // Normal move (no split)
+      const captures = detectCapture(game.pieces, pieceId, firstTarget);
+      
+      if (captures.length > 0) {
+        // Handle all captures at this location
+        for (const capture of captures) {
+          const result = collapseQuantumState(game.pieces, pieceId, capture.pieceId, firstTarget);
+          collapseEvents = collapseEvents.concat(result.collapseEvents);
+          collapseInfo = formatCollapseInfo(result.collapseEvents);
+        }
+      } else {
+        // Just move the piece normally
+        piece.square = firstTarget;
+        piece.probability = 1.0;
+      }
+
+      moveNotation = `${piece.type === 'p' ? '' : piece.type.toUpperCase()}${captures.length > 0 ? 'x' : ''}${firstTarget}`;
+    }
+
+    // Check if game is over
+    const gameOverStatus = checkGameOver(game.pieces);
+    if (gameOverStatus.gameOver) {
+      game.gameOver = true;
+      game.winner = gameOverStatus.winner;
+      io.to(gameId).emit('gameOver', { 
+        winner: gameOverStatus.winner,
+        collapseEvents: collapseEvents.length > 0 ? collapseEvents : null
+      });
+      return;
     }
 
     // Switch turns
     game.currentTurn = game.currentTurn === 'w' ? 'b' : 'w';
 
-    // Emit updated game state
-    io.to(gameId).emit('gameUpdate', { gameState: game });
+    // Emit update
+    if (collapseEvents.length > 0) {
+      io.to(gameId).emit('collapseEvent', { 
+        collapseEvents,
+        gameState: game 
+      });
+      // Also emit regular update after collapse
+      setTimeout(() => {
+        io.to(gameId).emit('gameUpdate', { 
+          gameState: game,
+          moveNotation,
+          collapseInfo
+        });
+      }, 100);
+    } else {
+      io.to(gameId).emit('gameUpdate', { 
+        gameState: game,
+        moveNotation,
+        collapseInfo
+      });
+    }
   });
 
   // Handle disconnection

@@ -23,6 +23,32 @@
                 </ul>
             </div>
 
+            <div class="game-settings">
+                <h3>Game Settings</h3>
+                
+                <div class="setting-group">
+                    <label>Splitting Mode:</label>
+                    <select id="splittingMode">
+                        <option value="optional">Optional Splitting</option>
+                        <option value="forced">Forced Splitting (Every Move Splits)</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <label>Time Control:</label>
+                    <select id="timeControl">
+                        <option value="unlimited">No Time Limit</option>
+                        <option value="5+0">5 minutes</option>
+                        <option value="10+0">10 minutes</option>
+                        <option value="15+0">15 minutes</option>
+                        <option value="5+3">5 min + 3 sec increment</option>
+                        <option value="10+5">10 min + 5 sec increment</option>
+                        <option value="3+2">3 min + 2 sec (Blitz)</option>
+                        <option value="1+0">1 minute (Bullet)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="button-group">
                 <button id="createGameBtn" class="primary-btn">Create New Game</button>
                 <div class="join-section">
@@ -52,10 +78,13 @@
 
         document.getElementById('createGameBtn').addEventListener('click', () => {
             const gameId = generateGameId();
-            const shareLink = `${window.location.origin}/game.html?id=${gameId}`;
+            const splittingMode = document.getElementById('splittingMode').value;
+            const timeControl = document.getElementById('timeControl').value;
+            const shareLink = `${window.location.origin}/game.html?id=${gameId}&mode=${splittingMode}&time=${timeControl}`;
             document.getElementById('shareLink').value = shareLink;
             document.getElementById('gameLink').classList.remove('hidden');
             document.querySelector('.button-group').style.display = 'none';
+            document.querySelector('.game-settings').style.display = 'none';
         });
 
         document.getElementById('joinGameBtn').addEventListener('click', () => {

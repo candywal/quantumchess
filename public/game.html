@@ -17,6 +17,17 @@
             </div>
         </div>
 
+        <div class="clock-container" id="clockContainer">
+            <div class="player-clock" id="whiteClock">
+                <div class="clock-label">White</div>
+                <div class="clock-time">--:--</div>
+            </div>
+            <div class="player-clock" id="blackClock">
+                <div class="clock-label">Black</div>
+                <div class="clock-time">--:--</div>
+            </div>
+        </div>
+
         <div class="game-content">
             <div class="board-wrapper">
                 <div id="chessboard" class="chessboard"></div>
@@ -26,14 +37,28 @@
                 <div class="status-box">
                     <h3>Game Status</h3>
                     <p id="statusMessage">Waiting for opponent...</p>
+                    <p id="gameModeDisplay" class="game-mode-display"></p>
                 </div>
 
-                <div id="moveOptions" class="move-options hidden">
-                    <h3>Move Options</h3>
-                    <p>Move to <span id="targetSquare"></span></p>
-                    <button id="normalMoveBtn" class="option-btn">Normal Move</button>
-                    <button id="splitMoveBtn" class="option-btn split-btn">Split (Quantum)</button>
+                <div id="splitInstructions" class="move-options hidden">
+                    <h3>⚛️ Quantum Split</h3>
+                    <p id="splitMessage">Select first destination square</p>
+                    <div class="split-targets">
+                        <div class="target-square">1st: <span id="firstTarget">--</span></div>
+                        <div class="target-square">2nd: <span id="secondTarget">--</span></div>
+                    </div>
+                    <button id="confirmSplitBtn" class="option-btn split-btn hidden">Confirm Split</button>
+                    <button id="normalMoveBtn" class="option-btn hidden">Move (No Split)</button>
                     <button id="cancelMoveBtn" class="option-btn cancel-btn">Cancel</button>
+                </div>
+
+                <div class="move-history">
+                    <h3>Move History <span id="historyCounter">(0)</span></h3>
+                    <div class="history-controls">
+                        <button id="historyBackBtn" class="history-btn" disabled>◀ Back</button>
+                        <button id="historyForwardBtn" class="history-btn" disabled>Forward ▶</button>
+                    </div>
+                    <div id="moveList" class="move-list"></div>
                 </div>
 
                 <div class="legend">
